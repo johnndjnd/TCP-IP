@@ -52,7 +52,6 @@ int main()
 
     {
       ReassemblerTestHarness test { "overlapping inserts", 1 };
-
       test.execute( Insert { "ab", 0 } );
       test.execute( BytesPushed( 1 ) );
       test.execute( BytesPending( 0 ) );

@@ -32,7 +32,7 @@ int main()
 
     {
       ReassemblerTestHarness test { "holes 3", 65000 };
-
+      
       test.execute( Insert { "b", 1 }.is_last() );
 
       test.execute( BytesPushed( 0 ) );

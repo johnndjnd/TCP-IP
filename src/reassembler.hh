@@ -1,6 +1,8 @@
 #pragma once
 
 #include "byte_stream.hh"
+#include <queue>
+#include <set>
 
 class Reassembler
 {
@@ -43,4 +45,12 @@ public:
 
 private:
   ByteStream output_;
+  std::priority_queue<std::pair<uint64_t, char>,
+                      std::vector<std::pair<uint64_t, char>>,
+                      std::greater<std::pair<uint64_t, char>>>
+    pending_bytes_ {};
+    std::set<uint64_t> index_set_ {};
+  bool can_closed_ {};
+  uint64_t first_unpoped_index_ {};
+  uint64_t first_unassemble_index_ {};
 };
