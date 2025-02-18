@@ -7,50 +7,56 @@ using namespace std;
 
 void Reassembler::insert( uint64_t first_index, string data, bool is_last_substring )
 {
-  if ( is_end_ )
+  Writer& writer = output_.writer();
+  if ( first_index + data.size() < first_unassemble_index_ )
     return;
-
-  first_unassembled_index_ = output_.writer().bytes_pushed();
-  end_unassembled_index_ = first_unassembled_index_ + output_.writer().available_capacity() - 1;
-
-  if ( first_index + data.size() < first_unassembled_index_ || first_index > end_unassembled_index_ )
+  if ( first_index > first_unassemble_index_ + writer.available_capacity() )
     return;
+  string useful_data;
+  if ( first_index < first_unassemble_index_ ) {
+    useful_data
+      = data.substr( first_unassemble_index_ - first_index,
+                     data.size() > writer.available_capacity() ? writer.available_capacity() : data.size() );
+    first_index = first_unassemble_index_;
 
-  // cout << "进入构造" << endl;
-  uint64_t data_start_index = max( first_index, first_unassembled_index_ );
-  uint64_t data_end_index = min( first_index + data.size() - 1, end_unassembled_index_ );
-  std::string_view tem_input( data );
-  tem_input = tem_input.substr( data_start_index - first_index, data_end_index - first_index + 1 );
-  for ( uint64_t i = 0, index = data_start_index; i < tem_input.size(); i++, index++ ) {
-    auto [iter, inserted] = data_wait_reassembler_.emplace( index, tem_input[i] );
-    if ( inserted ) {
-      bytes_pending_ += 1;
+  } else {
+    useful_data = data.substr( 0,
+                               ( first_index + data.size() ) > first_unassemble_index_ + writer.available_capacity()
+                                 ? writer.available_capacity() - ( first_index - first_unassemble_index_ )
+                                 : data.size() );
+    // 若有数据未写入，说明不能关闭
+    if ( useful_data.size() < data.size() )
+      is_last_substring = false;
+  }
+  while ( useful_data.size() > 0 ) {
+    // 若有重复的数据，直接跳过
+    if ( index_set_.find( first_index ) == index_set_.end() ){
+    pending_bytes_.push( { first_index, useful_data[0] } );
+    index_set_.insert( first_index );
     }
+    useful_data = useful_data.substr( 1 );
+    first_index++;
   }
+  while ( !pending_bytes_.empty() && pending_bytes_.top().first == first_unassemble_index_ ) {
+    writer.push( string( 1, pending_bytes_.top().second ) );
+    pending_bytes_.pop();
+    while ( pending_bytes_.size() > 0 && pending_bytes_.top().first == first_unassemble_index_ )
+      pending_bytes_.pop();
 
-  std::string tem_output;
-  tem_output.reserve( data_wait_reassembler_.size() );
-  while ( data_wait_reassembler_.count( first_unassembled_index_ ) ) {
-    tem_output += data_wait_reassembler_.at( first_unassembled_index_ );
-    data_wait_reassembler_.erase( first_unassembled_index_ );
-    bytes_pending_ -= 1;
-    first_unassembled_index_ += 1;
+    first_unassemble_index_++;
   }
-
-  output_.writer().push( tem_output );
-
   if ( is_last_substring ) {
-    bytes_num_ = first_index + data.size();
+    can_closed_ = true;
   }
-
-  if ( output_.writer().bytes_pushed() == bytes_num_ ) {
-    is_end_ = true;
-    output_.writer().close();
+  if ( can_closed_ && pending_bytes_.empty() ) {
+    writer.close();
   }
 }
 
+// How many bytes are stored in the Reassembler itself?
+// This function is for testing only; don't add extra state to support it.
 uint64_t Reassembler::count_bytes_pending() const
 {
-  // Your code here.
-  return bytes_pending_;
+
+  return pending_bytes_.size();
 }
